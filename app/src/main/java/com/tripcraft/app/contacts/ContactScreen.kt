@@ -135,7 +135,7 @@ fun ContactScreen(
                     } else {
                         "Edit Contact"
                     }
-                ),
+                )
             },
             text = {
                 Column(
