@@ -123,6 +123,14 @@ fun TravelJournalScreen(viewModel: JournalViewModel) {
     var selectedNote by remember {
         mutableStateOf<JournalNoteEntity?>(null)
     }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredNotes = remember(notes, searchQuery) {
+        notes.filter { note ->
+            note.title.contains(searchQuery.trim(), ignoreCase = true) ||
+                    note.location.contains(searchQuery.trim(), ignoreCase = true)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -130,7 +138,6 @@ fun TravelJournalScreen(viewModel: JournalViewModel) {
             .background(PageBackground)
     ) {
 
-        // Scrollable Travel Memories
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -184,6 +191,40 @@ fun TravelJournalScreen(viewModel: JournalViewModel) {
                 }
             }
 
+            // Search Field
+            if (notes.isNotEmpty()) {
+                item {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Search memories") },
+                        placeholder = {
+                            Text("Search by title or location")
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                TextButton(
+                                    onClick = { searchQuery = "" }
+                                ) {
+                                    Text("Clear", color = Teal)
+                                }
+                            }
+                        }
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Text(
+                        "${filteredNotes.size} results found",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
             // Empty State
             if (notes.isEmpty()) {
                 item {
@@ -219,10 +260,46 @@ fun TravelJournalScreen(viewModel: JournalViewModel) {
                         }
                     }
                 }
+            } else if (filteredNotes.isEmpty()) {
+
+                // No Search Results
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "🔍",
+                            style = MaterialTheme.typography.displayMedium
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Text(
+                            "No matching memories",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Navy
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Text(
+                            "Try another title or location.",
+                            color = Color.Gray
+                        )
+                    }
+                }
+
             } else {
 
                 // Memory Cards
-                items(notes, key = { it.id }) { note ->
+                items(
+                    filteredNotes,
+                    key = { it.id }
+                ) { note ->
 
                     MemoryCard(
                         note = note,
@@ -264,8 +341,7 @@ fun TravelJournalScreen(viewModel: JournalViewModel) {
             onDismiss = {
                 showDialog = false
             },
-            onSave = {
-                    title, description, location, rating, imageUri ->
+            onSave = { title, description, location, rating, imageUri ->
 
                 if (selectedNote == null) {
                     viewModel.insertNote(
