@@ -120,15 +120,33 @@ fun TravelJournalScreen(viewModel: JournalViewModel) {
     val notes by viewModel.allNotes.collectAsState()
 
     var showDialog by remember { mutableStateOf(false) }
+
     var selectedNote by remember {
         mutableStateOf<JournalNoteEntity?>(null)
     }
+
     var searchQuery by remember { mutableStateOf("") }
 
-    val filteredNotes = remember(notes, searchQuery) {
-        notes.filter { note ->
+    // Sorting states
+    var sortOption by remember { mutableStateOf("Newest First") }
+    var sortMenuExpanded by remember { mutableStateOf(false) }
+
+    // Search and sort memories
+    val filteredNotes = remember(notes, searchQuery, sortOption) {
+
+        val searchedNotes = notes.filter { note ->
             note.title.contains(searchQuery.trim(), ignoreCase = true) ||
                     note.location.contains(searchQuery.trim(), ignoreCase = true)
+        }
+
+        when (sortOption) {
+            "Highest Rating" -> searchedNotes.sortedByDescending { it.rating }
+
+            "Title A-Z" -> searchedNotes.sortedBy {
+                it.title.lowercase()
+            }
+
+            else -> searchedNotes.sortedByDescending { it.id }
         }
     }
 
@@ -223,6 +241,64 @@ fun TravelJournalScreen(viewModel: JournalViewModel) {
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
+
+                // Sort Memories
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Sort by",
+                            fontWeight = FontWeight.Bold,
+                            color = Navy
+                        )
+
+                        Box {
+                            OutlinedButton(
+                                onClick = {
+                                    sortMenuExpanded = true
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(sortOption, color = Teal)
+                                Text("  ▼", color = Teal)
+                            }
+
+                            DropdownMenu(
+                                expanded = sortMenuExpanded,
+                                onDismissRequest = {
+                                    sortMenuExpanded = false
+                                }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Newest First") },
+                                    onClick = {
+                                        sortOption = "Newest First"
+                                        sortMenuExpanded = false
+                                    }
+                                )
+
+                                DropdownMenuItem(
+                                    text = { Text("Highest Rating") },
+                                    onClick = {
+                                        sortOption = "Highest Rating"
+                                        sortMenuExpanded = false
+                                    }
+                                )
+
+                                DropdownMenuItem(
+                                    text = { Text("Title A-Z") },
+                                    onClick = {
+                                        sortOption = "Title A-Z"
+                                        sortMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             // Empty State
@@ -260,6 +336,7 @@ fun TravelJournalScreen(viewModel: JournalViewModel) {
                         }
                     }
                 }
+
             } else if (filteredNotes.isEmpty()) {
 
                 // No Search Results
@@ -473,7 +550,9 @@ fun MemoryDialog(
 
     var selectedImageUri by remember(note) {
         mutableStateOf(
-            note?.imageUri?.let { Uri.parse(it) }
+            note?.imageUri?.let {
+                Uri.parse(it)
+            }
         )
     }
 
