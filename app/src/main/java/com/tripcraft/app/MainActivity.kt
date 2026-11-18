@@ -1,6 +1,7 @@
 
 package com.tripcraft.app
 
+import com.tripcraft.app.features.trips.TripHubScreen
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -32,11 +33,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.tripcraft.app.contacts.ContactScreen
-import com.tripcraft.app.data.journal.JournalDatabase
+import com.tripcraft.app.data.journal.TripCraftDatabase
 import com.tripcraft.app.data.journal.JournalNoteEntity
 import com.tripcraft.app.data.journal.JournalRepository
 import com.tripcraft.app.ui.theme.TripCraftTheme
 import com.tripcraft.app.viewmodel.JournalViewModel
+import com.tripcraft.app.features.trips.TripRepository
+import com.tripcraft.app.features.trips.TripViewModel
 
 private val Navy = Color(0xFF17243A)
 private val Teal = Color(0xFF18A999)
@@ -47,20 +50,30 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val database = JournalDatabase.getDatabase(applicationContext)
+        val database = TripCraftDatabase.getDatabase(applicationContext)
         val repository = JournalRepository(database.journalNoteDao())
+        val tripRepository = TripRepository(database.tripDao())
+
 
         val factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(
                 modelClass: Class<T>
             ): T {
+
                 if (modelClass.isAssignableFrom(JournalViewModel::class.java)) {
                     @Suppress("UNCHECKED_CAST")
                     return JournalViewModel(repository) as T
                 }
+
+                if (modelClass.isAssignableFrom(TripViewModel::class.java)) {
+                    @Suppress("UNCHECKED_CAST")
+                    return TripViewModel(tripRepository) as T
+                }
+
                 throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
+
 
         setContent {
             TripCraftTheme {
@@ -68,15 +81,25 @@ class MainActivity : ComponentActivity() {
                     factory = factory
                 )
 
-                TripCraftHome(journalViewModel)
+                val tripViewModel: TripViewModel = viewModel(
+                    factory = factory
+                )
+
+                TripCraftHome(
+                    journalViewModel = journalViewModel,
+                    tripViewModel = tripViewModel
+                )
             }
         }
     }
 }
 
-@Composable
-fun TripCraftHome(viewModel: JournalViewModel) {
 
+@Composable
+fun TripCraftHome(
+    journalViewModel: JournalViewModel,
+    tripViewModel: TripViewModel
+) {
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -87,12 +110,19 @@ fun TripCraftHome(viewModel: JournalViewModel) {
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Text("✈") },
-                    label = { Text("Journal") }
+                    label = { Text("Trips") }
                 )
 
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
+                    icon = { Text("📖") },
+                    label = { Text("Journal") }
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
                     icon = { Text("☎") },
                     label = { Text("Contacts") }
                 )
@@ -105,14 +135,15 @@ fun TripCraftHome(viewModel: JournalViewModel) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (selectedTab == 0) {
-                TravelJournalScreen(viewModel)
-            } else {
-                ContactScreen()
+            when (selectedTab) {
+                0 -> TripHubScreen(tripViewModel)
+                1 -> TravelJournalScreen(journalViewModel)
+                2 -> ContactScreen()
             }
         }
     }
 }
+
 
 @Composable
 fun TravelJournalScreen(viewModel: JournalViewModel) {
