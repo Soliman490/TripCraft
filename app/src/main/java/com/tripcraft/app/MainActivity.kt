@@ -1,4 +1,3 @@
-
 package com.tripcraft.app
 
 import com.tripcraft.app.features.trips.TripHubScreen
@@ -101,6 +100,7 @@ fun TripCraftHome(
     tripViewModel: TripViewModel
 ) {
     var selectedTab by remember { mutableStateOf(0) }
+    val context = LocalContext.current
 
     Scaffold(
         containerColor = PageBackground,
@@ -125,6 +125,17 @@ fun TripCraftHome(
                     onClick = { selectedTab = 2 },
                     icon = { Text("☎") },
                     label = { Text("Contacts") }
+                )
+
+                NavigationBarItem(
+                    selected = false,
+                    onClick = {
+                        val intent = Intent(context, PackingActivity::class.java)
+                        intent.putExtra("ID", 1)
+                        context.startActivity(intent)
+                    },
+                    icon = { Text("🎒") },
+                    label = { Text("Packing") }
                 )
             }
         }

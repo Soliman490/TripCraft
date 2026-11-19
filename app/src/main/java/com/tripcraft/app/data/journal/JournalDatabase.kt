@@ -1,4 +1,3 @@
-
 package com.tripcraft.app.data.journal
 
 import android.content.Context
@@ -7,15 +6,18 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.tripcraft.app.PackingDao
+import com.tripcraft.app.PackingItem
 import com.tripcraft.app.features.trips.TripDao
 import com.tripcraft.app.features.trips.TripEntity
 
 @Database(
     entities = [
         JournalNoteEntity::class,
-        TripEntity::class
+        TripEntity::class,
+        PackingItem::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class TripCraftDatabase : RoomDatabase() {
@@ -23,6 +25,8 @@ abstract class TripCraftDatabase : RoomDatabase() {
     abstract fun journalNoteDao(): JournalNoteDao
 
     abstract fun tripDao(): TripDao
+
+    abstract fun packingDao(): PackingDao
 
     companion object {
 
@@ -46,6 +50,22 @@ abstract class TripCraftDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS packing_items (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        tripId INTEGER NOT NULL,
+                        name TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        packed INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getDatabase(context: Context): TripCraftDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -53,7 +73,7 @@ abstract class TripCraftDatabase : RoomDatabase() {
                     TripCraftDatabase::class.java,
                     "tripcraft_journal_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
 
                 INSTANCE = instance
