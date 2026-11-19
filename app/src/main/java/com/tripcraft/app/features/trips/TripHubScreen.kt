@@ -19,6 +19,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
 
 private val TripNavy = Color(0xFF17243A)
 private val TripTeal = Color(0xFF18A999)
@@ -34,6 +37,12 @@ fun TripHubScreen(
     var showAddTripDialog by remember {
         mutableStateOf(false)
     }
+    var editingTrip by remember {
+        mutableStateOf<TripEntity?>(null)
+    }
+    var tripToDelete by remember {
+        mutableStateOf<TripEntity?>(null)
+    }
 
     var tripTitle by remember { mutableStateOf("") }
     var tripDestination by remember { mutableStateOf("") }
@@ -48,6 +57,14 @@ fun TripHubScreen(
 
     var searchQuery by remember {
         mutableStateOf("")
+    }
+    fun startEditingTrip(trip: TripEntity) {
+        editingTrip = trip
+        tripTitle = trip.title
+        tripDestination = trip.destination
+        startDate = trip.startDate
+        endDate = trip.endDate
+        showAddTripDialog = true
     }
 
     val currentTime = System.currentTimeMillis()
@@ -123,6 +140,7 @@ fun TripHubScreen(
         item {
             Button(
                 onClick = {
+                    editingTrip = null
                     tripTitle = ""
                     tripDestination = ""
                     startDate = System.currentTimeMillis()
@@ -254,7 +272,9 @@ fun TripHubScreen(
                 ) { trip ->
                     TripCard(
                         trip = trip,
-                        status = "Upcoming"
+                        status = "Upcoming",
+                        onEdit = { startEditingTrip(trip) },
+                        onDelete = { tripToDelete = trip }
                     )
                 }
             }
@@ -276,7 +296,9 @@ fun TripHubScreen(
                 ) { trip ->
                     TripCard(
                         trip = trip,
-                        status = "Completed"
+                        status = "Completed",
+                        onEdit = { startEditingTrip(trip) },
+                        onDelete = { tripToDelete = trip }
                     )
                 }
             }
@@ -291,7 +313,11 @@ fun TripHubScreen(
             },
             title = {
                 Text(
-                    text = "Add New Trip",
+                    text = if (editingTrip == null) {
+                        "Add New Trip"
+                    } else {
+                        "Edit Trip"
+                    },
                     color = TripNavy,
                     fontWeight = FontWeight.Bold
                 )
@@ -398,7 +424,10 @@ fun TripHubScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (endDate >= startDate) {
+                        val currentTrip = editingTrip
+
+                        if (currentTrip == null) {
+                            // Add new trip
                             val newTrip = TripEntity(
                                 title = tripTitle.trim(),
                                 destination = tripDestination.trim(),
@@ -408,20 +437,32 @@ fun TripHubScreen(
 
                             viewModel.insertTrip(newTrip)
 
-                            tripTitle = ""
-                            tripDestination = ""
-                            startDate = System.currentTimeMillis()
-                            endDate = System.currentTimeMillis()
+                        } else {
+                            // Update existing trip
+                            val updatedTrip = currentTrip.copy(
+                                title = tripTitle.trim(),
+                                destination = tripDestination.trim(),
+                                startDate = startDate,
+                                endDate = endDate
+                            )
 
-                            showAddTripDialog = false
+                            viewModel.updateTrip(updatedTrip)
                         }
+
+                        // Reset form
+                        tripTitle = ""
+                        tripDestination = ""
+                        startDate = System.currentTimeMillis()
+                        endDate = System.currentTimeMillis()
+                        editingTrip = null
+                        showAddTripDialog = false
                     },
                     enabled = tripTitle.isNotBlank() &&
                             tripDestination.isNotBlank() &&
                             endDate >= startDate
                 ) {
                     Text(
-                        "Save",
+                        if (editingTrip == null) "Save" else "Update",
                         color = TripTeal
                     )
                 }
@@ -437,14 +478,55 @@ fun TripHubScreen(
             }
         )
     }
+    // Delete Confirmation Dialog
+    tripToDelete?.let { trip ->
+        AlertDialog(
+            onDismissRequest = {
+                tripToDelete = null
+            },
+            title = {
+                Text("Delete Trip?")
+            },
+            text = {
+                Text(
+                    "Are you sure you want to delete ${trip.title}?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteTrip(trip)
+                        tripToDelete = null
+                    }
+                ) {
+                    Text(
+                        "Delete",
+                        color = Color.Red
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        tripToDelete = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 // Trip Card
 @Composable
 private fun TripCard(
     trip: TripEntity,
-    status: String
+    status: String,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -469,7 +551,15 @@ private fun TripCard(
 
             Text(
                 text = "📍 ${trip.destination}",
-                color = TripTeal
+                color = TripTeal,
+                modifier = Modifier.clickable {
+                    val uri = Uri.parse(
+                        "https://www.google.com/maps/search/?api=1&query=${Uri.encode(trip.destination)}"
+                    )
+
+                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                    context.startActivity(intent)
+                }
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -483,23 +573,49 @@ private fun TripCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = if (status == "Upcoming") {
-                    Color(0xFFE5F7F4)
-                } else {
-                    Color(0xFFECEFF3)
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = status,
-                    modifier = Modifier.padding(
-                        horizontal = 12.dp,
-                        vertical = 6.dp
-                    ),
-                    fontWeight = FontWeight.Medium,
-                    color = TripNavy
-                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (status == "Upcoming") {
+                        Color(0xFFE5F7F4)
+                    } else {
+                        Color(0xFFECEFF3)
+                    }
+                ) {
+                    Text(
+                        text = status,
+                        modifier = Modifier.padding(
+                            horizontal = 12.dp,
+                            vertical = 6.dp
+                        ),
+                        fontWeight = FontWeight.Medium,
+                        color = TripNavy
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onEdit) {
+                        Text(
+                            text = "Edit",
+                            color = TripTeal,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    TextButton(onClick = onDelete) {
+                        Text(
+                            text = "Delete",
+                            color = Color.Red,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }
