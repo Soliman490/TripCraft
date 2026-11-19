@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -77,7 +78,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TripCraftHome(viewModel: JournalViewModel) {
 
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
         containerColor = PageBackground,
@@ -93,6 +94,13 @@ fun TripCraftHome(viewModel: JournalViewModel) {
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
+                    icon = { Text("🗓") },
+                    label = { Text("Itinerary") }
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
                     icon = { Text("☎") },
                     label = { Text("Contacts") }
                 )
@@ -105,10 +113,10 @@ fun TripCraftHome(viewModel: JournalViewModel) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (selectedTab == 0) {
-                TravelJournalScreen(viewModel)
-            } else {
-                ContactScreen()
+            when (selectedTab) {
+                0 -> TravelJournalScreen(viewModel)
+                1 -> ItineraryScreen()
+                else -> ContactScreen()
             }
         }
     }
@@ -119,20 +127,20 @@ fun TravelJournalScreen(viewModel: JournalViewModel) {
 
     val notes by viewModel.allNotes.collectAsState()
 
-    var showDialog by remember { mutableStateOf(false) }
+    var showDialog by rememberSaveable { mutableStateOf(false) }
 
-    var selectedNote by remember {
+    var selectedNote by rememberSaveable {
         mutableStateOf<JournalNoteEntity?>(null)
     }
 
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
 
     // Sorting states
-    var sortOption by remember { mutableStateOf("Newest First") }
-    var sortMenuExpanded by remember { mutableStateOf(false) }
+    var sortOption by rememberSaveable { mutableStateOf("Newest First") }
+    var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
     // Search and sort memories
-    val filteredNotes = remember(notes, searchQuery, sortOption) {
+    val filteredNotes = rememberSaveable(notes, searchQuery, sortOption) {
 
         val searchedNotes = notes.filter { note ->
             note.title.contains(searchQuery.trim(), ignoreCase = true) ||
