@@ -1,6 +1,6 @@
-
 package com.tripcraft.app
 
+import com.tripcraft.app.features.trips.TripHubScreen
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -19,7 +19,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,11 +32,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.tripcraft.app.contacts.ContactScreen
-import com.tripcraft.app.data.journal.JournalDatabase
+import com.tripcraft.app.data.journal.TripCraftDatabase
 import com.tripcraft.app.data.journal.JournalNoteEntity
 import com.tripcraft.app.data.journal.JournalRepository
 import com.tripcraft.app.ui.theme.TripCraftTheme
 import com.tripcraft.app.viewmodel.JournalViewModel
+import com.tripcraft.app.features.trips.TripRepository
+import com.tripcraft.app.features.trips.TripViewModel
 
 private val Navy = Color(0xFF17243A)
 private val Teal = Color(0xFF18A999)
@@ -48,20 +49,30 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val database = JournalDatabase.getDatabase(applicationContext)
+        val database = TripCraftDatabase.getDatabase(applicationContext)
         val repository = JournalRepository(database.journalNoteDao())
+        val tripRepository = TripRepository(database.tripDao())
+
 
         val factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(
                 modelClass: Class<T>
             ): T {
+
                 if (modelClass.isAssignableFrom(JournalViewModel::class.java)) {
                     @Suppress("UNCHECKED_CAST")
                     return JournalViewModel(repository) as T
                 }
+
+                if (modelClass.isAssignableFrom(TripViewModel::class.java)) {
+                    @Suppress("UNCHECKED_CAST")
+                    return TripViewModel(tripRepository) as T
+                }
+
                 throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
+
 
         setContent {
             TripCraftTheme {
@@ -69,16 +80,27 @@ class MainActivity : ComponentActivity() {
                     factory = factory
                 )
 
-                TripCraftHome(journalViewModel)
+                val tripViewModel: TripViewModel = viewModel(
+                    factory = factory
+                )
+
+                TripCraftHome(
+                    journalViewModel = journalViewModel,
+                    tripViewModel = tripViewModel
+                )
             }
         }
     }
 }
 
-@Composable
-fun TripCraftHome(viewModel: JournalViewModel) {
 
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+@Composable
+fun TripCraftHome(
+    journalViewModel: JournalViewModel,
+    tripViewModel: TripViewModel
+) {
+    var selectedTab by remember { mutableStateOf(0) }
+    val context = LocalContext.current
 
     Scaffold(
         containerColor = PageBackground,
@@ -88,21 +110,45 @@ fun TripCraftHome(viewModel: JournalViewModel) {
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Text("✈") },
-                    label = { Text("Journal") }
+                    label = { Text("Trips") }
                 )
 
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Text("🗓") },
-                    label = { Text("Itinerary") }
+                    icon = { Text("💰") },
+                    label = { Text("Expenses") }
                 )
 
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
+                    icon = { Text("📖") },
+                    label = { Text("Journal") }
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
                     icon = { Text("☎") },
                     label = { Text("Contacts") }
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    icon = { Text("⚙") },
+                    label = { Text("Settings") }
+                )
+                NavigationBarItem(
+                    selected = false,
+                    onClick = {
+                        val intent = Intent(context, PackingActivity::class.java)
+                        intent.putExtra("ID", 1)
+                        context.startActivity(intent)
+                    },
+                    icon = { Text("🎒") },
+                    label = { Text("Packing") }
                 )
             }
         }
@@ -114,33 +160,36 @@ fun TripCraftHome(viewModel: JournalViewModel) {
                 .padding(padding)
         ) {
             when (selectedTab) {
-                0 -> TravelJournalScreen(viewModel)
-                1 -> ItineraryScreen()
-                else -> ContactScreen()
+                0 -> TripHubScreen(tripViewModel)
+                1 -> com.tripcraft.app.features.expenses.ExpensesScreen()
+                2 -> TravelJournalScreen(journalViewModel)
+                3 -> ContactScreen()
+                4 -> SettingsScreen()
             }
         }
     }
 }
+
 
 @Composable
 fun TravelJournalScreen(viewModel: JournalViewModel) {
 
     val notes by viewModel.allNotes.collectAsState()
 
-    var showDialog by rememberSaveable { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
 
-    var selectedNote by rememberSaveable {
+    var selectedNote by remember {
         mutableStateOf<JournalNoteEntity?>(null)
     }
 
-    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
 
     // Sorting states
-    var sortOption by rememberSaveable { mutableStateOf("Newest First") }
-    var sortMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var sortOption by remember { mutableStateOf("Newest First") }
+    var sortMenuExpanded by remember { mutableStateOf(false) }
 
     // Search and sort memories
-    val filteredNotes = rememberSaveable(notes, searchQuery, sortOption) {
+    val filteredNotes = remember(notes, searchQuery, sortOption) {
 
         val searchedNotes = notes.filter { note ->
             note.title.contains(searchQuery.trim(), ignoreCase = true) ||

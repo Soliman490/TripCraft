@@ -19,9 +19,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.tripcraft.app.data.journal.TripCraftDatabase
+import com.tripcraft.app.features.trips.TripEntity
+import com.tripcraft.app.ui.theme.TripCraftTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val Navy = Color(0xFF17243A)
+private val Teal = Color(0xFF18A999)
+private val CardSand = Color(0xFFFFF3E4)
 
 class ItineraryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,7 +39,7 @@ class ItineraryActivity : ComponentActivity() {
 
         setContent {
             TripCraftTheme {
-                Scaffold(containerColor = TripCraftColors.MistBackground) { pad ->
+                Scaffold { pad ->
                     ItineraryScreen(
                         tripId = tripId,
                         onBack = { finish() },
@@ -57,17 +65,23 @@ fun ItineraryScreen(
     var time by rememberSaveable { mutableStateOf("10:00 AM") }
     var title by rememberSaveable { mutableStateOf("") }
 
-    fun refreshItinerary(action: (suspend (TripDatabase, Int) -> Unit)? = null) {
+    fun refreshItinerary(action: (suspend (TripCraftDatabase, Int) -> Unit)? = null) {
         scope.launch(Dispatchers.IO) {
-            val db = TripDatabase.get(context)
+            val db = TripCraftDatabase.getDatabase(context)
             var currentId = activeTripId
             if (currentId <= 0) {
-                val existingTrips = db.tripDao().getAll()
+                val existingTrips = db.tripDao().getAllTrips().firstOrNull() ?: emptyList()
                 if (existingTrips.isNotEmpty()) {
                     currentId = existingTrips.first().id
                 } else {
-                    db.tripDao().insert(Trip(title = "My Trip", destination = "General", date = "Today", budget = 0.0))
-                    currentId = db.tripDao().getAll().firstOrNull()?.id ?: 0
+                    val now = System.currentTimeMillis()
+                    val newTrip = TripEntity(
+                        title = "My Trip",
+                        destination = "General",
+                        startDate = now,
+                        endDate = now
+                    )
+                    currentId = db.tripDao().insertTrip(newTrip).toInt()
                 }
                 withContext(Dispatchers.Main) {
                     activeTripId = currentId
@@ -94,10 +108,23 @@ fun ItineraryScreen(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        HeaderBar(
-            title = "Itinerary (${list.count { it.done }}/${list.size})",
-            onBack = onBack
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onBack != null) {
+                OutlinedButton(onClick = onBack) { Text("Back") }
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                text = "Itinerary (${list.count { it.done }}/${list.size})",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Navy,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = day,
@@ -137,7 +164,8 @@ fun ItineraryScreen(
                         }
                         title = ""
                     }
-                }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Teal)
             ) {
                 Text("Add")
             }
@@ -146,7 +174,7 @@ fun ItineraryScreen(
             items(list, key = { it.id }) { item ->
                 Card(
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = TripCraftColors.CardSand),
+                    colors = CardDefaults.cardColors(containerColor = CardSand),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
